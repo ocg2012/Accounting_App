@@ -1,3 +1,15 @@
+import { db } from './firebase';
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  orderBy, 
+  onSnapshot 
+} from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
 import { 
   PlusCircle, 
@@ -73,6 +85,24 @@ const AccountingApp = () => {
     }
   }, [spenders]);
 
+  // 新增：監聽 Firebase 資料庫的變動
+  useEffect(() => {
+    // 設定查詢：目標是 "records" 集合，並依照日期 (date) 降序排列
+    const q = query(collection(db, "records"), orderBy("date", "desc"));
+    
+    // onSnapshot 會持續監聽，只要雲端有資料新增、修改、刪除，這裡就會自動更新
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const recordsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id // Firebase 給每個資料的專屬 ID
+      }));
+      setRecords(recordsData); // 把雲端抓下來的資料放進畫面的狀態裡
+    });
+
+    // 離開頁面時停止監聽，節省效能
+    return () => unsubscribe();
+  }, []);
+
   // 處理表單變更
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -87,32 +117,34 @@ const AccountingApp = () => {
     }
   };
 
-  // 提交表單
-  const handleSubmit = (e) => {
+  // 提交表單 (寫入雲端)
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.spender || !formData.itemName || !formData.amount) return;
 
-    if (editingId) {
-      // 編輯現有紀錄
-      setRecords(prev => prev.map(r => r.id === editingId ? { ...formData, id: editingId } : r));
-      setSuccessMsg('紀錄已成功更新！');
-      setEditingId(null); // 更新完畢後退出編輯模式
-    } else {
-      // 新增紀錄
-      const newRecord = {
-        id: Date.now().toString(),
-        ...formData
-      };
-      setRecords(prev => [newRecord, ...prev]);
-      setSuccessMsg('紀錄已成功儲存！');
+    try {
+      if (editingId) {
+        // 編輯：更新雲端現有紀錄
+        const recordRef = doc(db, "records", editingId);
+        await updateDoc(recordRef, formData);
+        setSuccessMsg('紀錄已成功更新至雲端！');
+        setEditingId(null); // 更新完畢後退出編輯模式
+      } else {
+        // 新增：推送新紀錄到雲端
+        await addDoc(collection(db, "records"), formData);
+        setSuccessMsg('紀錄已成功儲存至雲端！');
+      }
+      
+      // 重置表單 (保留日期和人員，清空其他)
+      setFormData(prev => ({
+        ...initialFormData,
+        spender: prev.spender,
+        date: prev.date,
+      }));
+    } catch (error) {
+      console.error("寫入失敗: ", error);
+      alert("儲存失敗！請檢查網路連線或 Firebase 權限設定。");
     }
-    
-    // 重置表單 (保留日期和人員，清空其他)
-    setFormData(prev => ({
-      ...initialFormData,
-      spender: prev.spender,
-      date: prev.date,
-    }));
 
     // 顯示成功訊息
     setTimeout(() => setSuccessMsg(''), 3000);
@@ -238,10 +270,17 @@ const AccountingApp = () => {
     document.body.removeChild(link);
   };
 
-  // 刪除紀錄
-  const deleteRecord = (id) => {
-    if (confirm('確定要刪除這筆紀錄嗎？')) {
-      setRecords(prev => prev.filter(r => r.id !== id));
+  // 刪除紀錄 (從雲端刪除)
+  const deleteRecord = async (id) => {
+    if (confirm('確定要從雲端永久刪除這筆紀錄嗎？此動作無法復原。')) {
+      try {
+        await deleteDoc(doc(db, "records", id));
+        // 注意：這裡不需要寫 setRecords(...) 來更新畫面
+        // 因為我們上面寫了 onSnapshot，雲端一刪除，畫面就會自動同步消失！
+      } catch (error) {
+        console.error("刪除失敗: ", error);
+        alert("刪除失敗！請檢查權限。");
+      }
     }
   };
 
