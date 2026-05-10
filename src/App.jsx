@@ -8,7 +8,8 @@ import {
   doc, 
   query, 
   orderBy, 
-  onSnapshot 
+  onSnapshot,
+  setDoc
 } from "firebase/firestore";
 import React, { useState, useEffect } from 'react';
 import { 
@@ -35,11 +36,11 @@ import {
 
 const AccountingApp = () => {
   // --- State Management ---
-  const [activeTab, setActiveTab] = useState('form'); // 'form', 'records', 'import', 'settings'
-  const [spenders, setSpenders] = useState(['自己', '老闆', '採購人員A']);
-  const [projects, setProjects] = useState(['專案A', '專案B']);
-  const [creditCards, setCreditCards] = useState(['公司國泰卡', '個人玉山卡']);
-  const [bankAccounts, setBankAccounts] = useState(['公司中信帳戶', '個人台新帳戶']);
+  const [activeTab, setActiveTab] = useState('form');
+  const [spenders, setSpenders] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [creditCards, setCreditCards] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [records, setRecords] = useState([]);
   const [successMsg, setSuccessMsg] = useState(''); // 修改為字串，方便顯示不同訊息
   
@@ -103,6 +104,38 @@ const AccountingApp = () => {
     return () => unsubscribe();
   }, []);
 
+// 2. 新增：監聽系統設定 (人員、專案、信用卡、帳號)
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, "config", "settings"), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setSpenders(data.spenders || []);
+        setProjects(data.projects || []);
+        setCreditCards(data.creditCards || []);
+        setBankAccounts(data.bankAccounts || []);
+      } else {
+        // 如果雲端沒有設定，初始化一份預設值
+        setDoc(doc(db, "config", "settings"), {
+          spenders: ['自己', '老闆', '採購人員A'],
+          projects: ['專案A', '專案B'],
+          creditCards: ['公司國泰卡', '個人玉山卡'],
+          bankAccounts: ['公司中信帳戶', '個人台新帳戶']
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 輔助函式：更新設定到雲端
+  const updateCloudSettings = async (key, newList) => {
+    try {
+      await setDoc(doc(db, "config", "settings"), { [key]: newList }, { merge: true });
+    } catch (error) {
+      console.error("更新設定失敗", error);
+      alert("設定更新失敗，請檢查權限！");
+    }
+  };
+
   // 處理表單變更
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -111,7 +144,7 @@ const AccountingApp = () => {
     if (name === 'paymentMethod') {
       setFormData(prev => ({ ...prev, [name]: newValue, paymentDetail: '' }));
     } else if (name === 'usageType' && value === '家用') {
-      setFormData(prev => ({ ...prev, [name]: newValue, isReimbursable: false, projectName: '' }));
+      setFormData(prev => ({ ...prev, [name]: newValue, projectName: '' }));
     } else {
       setFormData(prev => ({ ...prev, [name]: newValue }));
     }
@@ -233,7 +266,7 @@ const AccountingApp = () => {
 
     // 若為報帳專用，進一步篩選
     if (onlyReimbursable) {
-      filteredRecords = filteredRecords.filter(r => r.usageType === '公司用' && r.isReimbursable);
+      filteredRecords = filteredRecords.filter(r => r.isReimbursable);
     }
 
     if (filteredRecords.length === 0) {
@@ -284,50 +317,34 @@ const AccountingApp = () => {
     }
   };
 
-  // 新增花費人員
-  const handleAddSpender = (e) => {
+// 修改：設定功能全部改為更新 Firebase
+  const handleAddSpender = async (e) => {
     e.preventDefault();
     if (newSpenderName.trim() && !spenders.includes(newSpenderName.trim())) {
-      setSpenders([...spenders, newSpenderName.trim()]);
+      await updateCloudSettings('spenders', [...spenders, newSpenderName.trim()]);
       setNewSpenderName('');
     }
   };
 
-  // 刪除花費人員
-  const deleteSpender = (name) => {
-    if (spenders.length <= 1) {
-      alert('至少需要保留一位花費人員！');
-      return;
-    }
-    setSpenders(spenders.filter(s => s !== name));
-    if (formData.spender === name) {
-      setFormData(prev => ({ ...prev, spender: spenders.find(s => s !== name) }));
-    }
+  const deleteSpender = async (name) => {
+    if (spenders.length <= 1) { alert('至少需要保留一位花費人員！'); return; }
+    await updateCloudSettings('spenders', spenders.filter(s => s !== name));
+    if (formData.spender === name) setFormData(prev => ({ ...prev, spender: spenders.find(s => s !== name) }));
   };
 
-  // 通用新增設定項目
-  const handleAddSetting = (e, stateSetter, value, resetValue) => {
+  const handleAddSetting = async (e, firebaseKey, value, resetValue, currentList) => {
     e.preventDefault();
-    if (value.trim()) {
-      stateSetter(prev => prev.includes(value.trim()) ? prev : [...prev, value.trim()]);
+    if (value.trim() && !currentList.includes(value.trim())) {
+      await updateCloudSettings(firebaseKey, [...currentList, value.trim()]);
       resetValue('');
     }
   };
 
-  // 通用刪除設定項目
-  const deleteSetting = (name, stateSetter, formDataKey) => {
-    stateSetter(prev => {
-      const newList = prev.filter(item => item !== name);
-      if (newList.length === 0) {
-        alert('至少需要保留一個選項！');
-        return prev;
-      }
-      return newList;
-    });
-    // 如果目前表單選中了被刪除的項目，則清空該選項
-    if (formData[formDataKey] === name) {
-      setFormData(prev => ({ ...prev, [formDataKey]: '' }));
-    }
+  const deleteSetting = async (name, firebaseKey, formDataKey, currentList) => {
+    const newList = currentList.filter(item => item !== name);
+    if (newList.length === 0) { alert('至少需要保留一個選項！'); return; }
+    await updateCloudSettings(firebaseKey, newList);
+    if (formData[formDataKey] === name) setFormData(prev => ({ ...prev, [formDataKey]: '' }));
   };
 
   // 解析單行 CSV (考慮引號與自動分隔符號)
@@ -508,33 +525,32 @@ const AccountingApp = () => {
   };
 
   // 確認匯入
-  const confirmImport = () => {
+const confirmImport = async () => {
     if (importPreview.length === 0) return;
 
-    // 自動將新的人員、專案、卡片、帳戶加入設定中
     const newSpenders = new Set(spenders);
     const newProjects = new Set(projects);
     const newCreditCards = new Set(creditCards);
     const newBankAccounts = new Set(bankAccounts);
 
     importPreview.forEach(r => {
-      // 防止將預設的「無」加入到設定選單中
       if (r.spender && r.spender !== '無') newSpenders.add(r.spender);
       if (r.projectName && r.projectName !== '無') newProjects.add(r.projectName);
       if (r.paymentMethod === '信用卡' && r.paymentDetail && r.paymentDetail !== '無') newCreditCards.add(r.paymentDetail);
       if (r.paymentMethod === '轉帳' && r.paymentDetail && r.paymentDetail !== '無') newBankAccounts.add(r.paymentDetail);
     });
 
-    setSpenders(Array.from(newSpenders));
-    setProjects(Array.from(newProjects));
-    setCreditCards(Array.from(newCreditCards));
-    setBankAccounts(Array.from(newBankAccounts));
+    // 修改：匯入的新設定也同步寫入雲端
+    await setDoc(doc(db, "config", "settings"), {
+      spenders: Array.from(newSpenders),
+      projects: Array.from(newProjects),
+      creditCards: Array.from(newCreditCards),
+      bankAccounts: Array.from(newBankAccounts)
+    }, { merge: true });
 
-    // 將新資料合併進舊紀錄中
     setRecords(prev => [...importPreview, ...prev]);
     setSuccessMsg(`成功匯入 ${importPreview.length} 筆紀錄！`);
     
-    // 重置匯入狀態並跳轉回紀錄清單
     setImportPreview([]);
     setImportFile(null);
     setImportError('');
@@ -731,60 +747,34 @@ const AccountingApp = () => {
             <label className="block text-sm font-medium text-gray-700 mb-3">使用分類</label>
             <div className="flex gap-4 mb-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="usageType"
-                  value="公司用"
-                  checked={formData.usageType === '公司用'}
-                  onChange={handleInputChange}
-                  className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                />
+                <input type="radio" name="usageType" value="公司用" checked={formData.usageType === '公司用'} onChange={handleInputChange} className="w-4 h-4 text-blue-600" />
                 <Building2 size={18} className="text-gray-500" />
                 <span>公司用</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="usageType"
-                  value="家用"
-                  checked={formData.usageType === '家用'}
-                  onChange={handleInputChange}
-                  className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                />
+                <input type="radio" name="usageType" value="家用" checked={formData.usageType === '家用'} onChange={handleInputChange} className="w-4 h-4 text-blue-600" />
                 <Home size={18} className="text-gray-500" />
                 <span>家用</span>
               </label>
             </div>
 
-            {/* 專案名稱與報帳與否 (僅公司用顯示) */}
             {formData.usageType === '公司用' && (
-              <div className="pt-4 border-t border-gray-200 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">專案名稱</label>
-                  <select
-                    name="projectName"
-                    value={formData.projectName}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full p-2.5 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  >
-                    <option value="" disabled>請選擇專案</option>
-                    {projects.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="isReimbursable"
-                    checked={formData.isReimbursable}
-                    onChange={handleInputChange}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="font-medium text-gray-700">這筆花費需要報帳</span>
-                </label>
+              <div className="pt-4 border-t border-gray-200 mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">專案名稱</label>
+                <select name="projectName" value={formData.projectName} onChange={handleInputChange} required className="w-full p-2.5 rounded-lg border border-gray-300 bg-white">
+                  <option value="" disabled>請選擇專案</option>
+                  {projects.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
               </div>
             )}
+
+            {/* 修改：將報帳按鈕獨立出來，讓公司用和家用都能顯示並勾選 */}
+            <div className="pt-4 border-t border-gray-200 mt-2">
+              <label className="flex items-center gap-2 cursor-pointer w-fit p-2 rounded hover:bg-gray-100">
+                <input type="checkbox" name="isReimbursable" checked={formData.isReimbursable} onChange={handleInputChange} className="w-4 h-4 rounded text-blue-600" />
+                <span className="font-medium text-blue-800">這筆花費需要報帳</span>
+              </label>
+            </div>
           </div>
 
           {/* 備註 (選填) */}
