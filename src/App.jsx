@@ -1107,7 +1107,7 @@ const confirmImport = async () => {
         {/* 專案名稱管理 */}
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">專案名稱管理</h3>
-          <form onSubmit={(e) => handleAddSetting(e, setProjects, newProjectName, setNewProjectName)} className="flex gap-2 mb-4">
+          <form onSubmit={(e) => handleAddSetting(e, 'projects', newProjectName, setNewProjectName, projects)} className="flex gap-2 mb-4">
             <input
               type="text"
               value={newProjectName}
@@ -1123,7 +1123,7 @@ const confirmImport = async () => {
             {projects.map((item) => (
               <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
                 <span className="font-medium text-gray-700">{item}</span>
-                <button onClick={() => deleteSetting(item, setProjects, 'projectName')} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
+                <button onClick={() => deleteSetting(item, 'projects', 'projectName', projects)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
               </li>
             ))}
           </ul>
@@ -1132,7 +1132,7 @@ const confirmImport = async () => {
         {/* 信用卡管理 */}
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">信用卡管理</h3>
-          <form onSubmit={(e) => handleAddSetting(e, setCreditCards, newCreditCardName, setNewCreditCardName)} className="flex gap-2 mb-4">
+          <form onSubmit={(e) => handleAddSetting(e, 'creditCards', newCreditCardName, setNewCreditCardName, creditCards)} className="flex gap-2 mb-4">
             <input
               type="text"
               value={newCreditCardName}
@@ -1148,7 +1148,7 @@ const confirmImport = async () => {
             {creditCards.map((item) => (
               <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
                 <span className="font-medium text-gray-700">{item}</span>
-                <button onClick={() => deleteSetting(item, setCreditCards, 'paymentDetail')} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
+                <button onClick={() => deleteSetting(item, 'creditCards', 'paymentDetail', creditCards)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
               </li>
             ))}
           </ul>
@@ -1157,7 +1157,7 @@ const confirmImport = async () => {
         {/* 轉帳帳號管理 */}
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">轉帳帳號管理</h3>
-          <form onSubmit={(e) => handleAddSetting(e, setBankAccounts, newBankAccountName, setNewBankAccountName)} className="flex gap-2 mb-4">
+          <form onSubmit={(e) => handleAddSetting(e, 'bankAccounts', newBankAccountName, setNewBankAccountName, bankAccounts)} className="flex gap-2 mb-4">
             <input
               type="text"
               value={newBankAccountName}
@@ -1173,7 +1173,7 @@ const confirmImport = async () => {
             {bankAccounts.map((item) => (
               <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
                 <span className="font-medium text-gray-700">{item}</span>
-                <button onClick={() => deleteSetting(item, setBankAccounts, 'paymentDetail')} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
+                <button onClick={() => deleteSetting(item, 'bankAccounts', 'paymentDetail', bankAccounts)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
               </li>
             ))}
           </ul>
