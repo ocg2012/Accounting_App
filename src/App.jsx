@@ -318,33 +318,55 @@ const AccountingApp = () => {
   };
 
 // 修改：設定功能全部改為更新 Firebase
-  const handleAddSpender = async (e) => {
-    e.preventDefault();
-    if (newSpenderName.trim() && !spenders.includes(newSpenderName.trim())) {
-      await updateCloudSettings('spenders', [...spenders, newSpenderName.trim()]);
-      setNewSpenderName('');
-    }
-  };
-
-  const deleteSpender = async (name) => {
-    if (spenders.length <= 1) { alert('至少需要保留一位花費人員！'); return; }
-    await updateCloudSettings('spenders', spenders.filter(s => s !== name));
-    if (formData.spender === name) setFormData(prev => ({ ...prev, spender: spenders.find(s => s !== name) }));
-  };
-
+// --- 統一的新增設定函式 (帶有防呆與錯誤提示) ---
   const handleAddSetting = async (e, firebaseKey, value, resetValue, currentList) => {
     e.preventDefault();
-    if (value.trim() && !currentList.includes(value.trim())) {
-      await updateCloudSettings(firebaseKey, [...currentList, value.trim()]);
+    try {
+      // 1. 防呆：確保 currentList 一定是陣列，如果不是就當作空陣列
+      const safeList = Array.isArray(currentList) ? currentList : [];
+      const trimmedValue = value ? value.trim() : '';
+
+      // 2. 如果沒輸入東西，直接結束
+      if (!trimmedValue) return;
+
+      // 3. 檢查是否重複
+      if (safeList.includes(trimmedValue)) {
+        alert('這個選項已經存在囉！請換一個名稱。');
+        return;
+      }
+
+      // 4. 寫入 Firebase
+      await updateCloudSettings(firebaseKey, [...safeList, trimmedValue]);
+      
+      // 5. 清空輸入框
       resetValue('');
+
+    } catch (error) {
+      console.error("新增設定發生錯誤: ", error);
+      alert('新增失敗！請按 F12 查看錯誤訊息。');
     }
   };
 
+  // --- 統一的刪除設定函式 ---
   const deleteSetting = async (name, firebaseKey, formDataKey, currentList) => {
-    const newList = currentList.filter(item => item !== name);
-    if (newList.length === 0) { alert('至少需要保留一個選項！'); return; }
-    await updateCloudSettings(firebaseKey, newList);
-    if (formData[formDataKey] === name) setFormData(prev => ({ ...prev, [formDataKey]: '' }));
+    const safeList = Array.isArray(currentList) ? currentList : [];
+    const newList = safeList.filter(item => item !== name);
+    
+    if (newList.length === 0) { 
+      alert('至少需要保留一個選項喔！'); 
+      return; 
+    }
+    
+    try {
+      await updateCloudSettings(firebaseKey, newList);
+      // 如果目前表單正好選中這個被刪除的項目，就把它清空
+      if (formData[formDataKey] === name) {
+        setFormData(prev => ({ ...prev, [formDataKey]: '' }));
+      }
+    } catch (error) {
+      console.error("刪除設定發生錯誤: ", error);
+      alert('刪除失敗！');
+    }
   };
 
   // 解析單行 CSV (考慮引號與自動分隔符號)
@@ -1060,7 +1082,7 @@ const confirmImport = async () => {
         {/* 花費人員管理 */}
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">花費人員管理</h3>
-          <form onSubmit={handleAddSpender} className="flex gap-2 mb-4">
+          <form onSubmit={(e) => handleAddSetting(e, 'spenders', newSpenderName, setNewSpenderName, spenders)} className="flex gap-2 mb-4">
             <input
               type="text"
               value={newSpenderName}
@@ -1076,7 +1098,7 @@ const confirmImport = async () => {
             {spenders.map((item) => (
               <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
                 <span className="font-medium text-gray-700">{item}</span>
-                <button onClick={() => deleteSpender(item)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
+                <button onClick={() => deleteSetting(item, 'spenders', 'spender', spenders)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
               </li>
             ))}
           </ul>
