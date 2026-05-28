@@ -43,7 +43,7 @@ const AccountingApp = () => {
   const [bankAccounts, setBankAccounts] = useState([]);
   const [records, setRecords] = useState([]);
   const [successMsg, setSuccessMsg] = useState(''); // 修改為字串，方便顯示不同訊息
-  
+  const [vendors, setVendors] = useState([]); // 廠商清單
   // 新增狀態：編輯功能與匯出日期篩選
   const [editingId, setEditingId] = useState(null); 
   const [exportStartDate, setExportStartDate] = useState('');
@@ -61,6 +61,7 @@ const AccountingApp = () => {
   const [newProjectName, setNewProjectName] = useState('');
   const [newCreditCardName, setNewCreditCardName] = useState('');
   const [newBankAccountName, setNewBankAccountName] = useState('');
+  const [newVendorName, setNewVendorName] = useState(''); // 設定頁面用的輸入框
 
   // 預設表單資料
   const initialFormData = {
@@ -70,6 +71,7 @@ const AccountingApp = () => {
     itemName: '',
     amount: '',
     tax: '',
+    vendor: '',
     paymentMethod: '現金',
     paymentDetail: '',
     usageType: '公司用',
@@ -114,6 +116,7 @@ const AccountingApp = () => {
         setProjects(data.projects || []);
         setCreditCards(data.creditCards || []);
         setBankAccounts(data.bankAccounts || []);
+        setVendors(data.vendors || []);
       } else {
         // 如果雲端沒有設定，初始化一份預設值
         setDoc(doc(db, "config", "settings"), {
@@ -279,7 +282,7 @@ const AccountingApp = () => {
       return;
     }
 
-    const headers = ['花費人員', '日期', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用', '專案名稱', '需報帳', '備註'];
+    const headers = ['花費人員', '日期', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用', '專案名稱', '廠商', '需報帳', '備註'];
     const csvRows = filteredRecords.map(r => [
       escapeCSV(r.spender || '無'),
       escapeCSV(r.date || '無'),
@@ -292,6 +295,7 @@ const AccountingApp = () => {
       escapeCSV(r.paymentDetail || '無'),
       escapeCSV(r.usageType || '無'),
       escapeCSV(r.projectName || '無'),
+      escapeCSV(r.vendor || '無'),
       escapeCSV(r.isReimbursable ? '是' : '否'),
       escapeCSV(r.remark || '無')
     ]);
@@ -811,12 +815,28 @@ const confirmImport = async () => {
             </div>
 
             {formData.usageType === '公司用' && (
-              <div className="pt-4 border-t border-gray-200 mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">專案名稱</label>
-                <select name="projectName" value={formData.projectName} onChange={handleInputChange} required className="w-full p-2.5 rounded-lg border border-gray-300 bg-white">
-                  <option value="" disabled>請選擇專案</option>
-                  {projects.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+              <div className="pt-4 border-t border-gray-200 mb-4 space-y-4">
+                {/* 專案名稱 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">專案名稱</label>
+                  <select name="projectName" value={formData.projectName} onChange={handleInputChange} required className="w-full p-2.5 rounded-lg border border-gray-300 bg-white">
+                    <option value="" disabled>請選擇專案</option>
+                    {projects.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                {/* ✨ 新增：廠商 (選填) ✨ */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">廠商 (選填)</label>
+                  <select 
+                    name="vendor" 
+                    value={formData.vendor || ''} 
+                    onChange={handleInputChange} 
+                    className="w-full p-2.5 rounded-lg border border-gray-300 bg-white"
+                  >
+                    <option value="">-- 不指定廠商 --</option>
+                    {vendors.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
               </div>
             )}
 
@@ -1163,6 +1183,31 @@ const confirmImport = async () => {
               <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
                 <span className="font-medium text-gray-700">{item}</span>
                 <button onClick={() => deleteSetting(item, 'projects', 'projectName', projects)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* 廠商管理 */}
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">廠商管理</h3>
+          <form onSubmit={(e) => handleAddSetting(e, 'vendors', newVendorName, setNewVendorName, vendors)} className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newVendorName}
+              onChange={(e) => setNewVendorName(e.target.value)}
+              placeholder="輸入新廠商名稱"
+              className="flex-1 p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+            />
+            <button type="submit" disabled={!newVendorName.trim()} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition text-sm flex items-center gap-1">
+              <PlusCircle size={16} /> 新增
+            </button>
+          </form>
+          <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+            {vendors.map((item) => (
+              <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
+                <span className="font-medium text-gray-700">{item}</span>
+                <button onClick={() => deleteSetting(item, 'vendors', 'vendor', vendors)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
               </li>
             ))}
           </ul>
