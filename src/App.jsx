@@ -302,7 +302,7 @@ const AccountingApp = () => {
   // 匯出 Excel (CSV)
   const handleExport = (onlyReimbursable = false) => {
     // 根據選擇的日期區間進行篩選，並套用目前的排序 (sortedRecords)
-    let filteredRecords = sortedRecords;
+    let filteredRecords = displayRecords;
     if (exportStartDate) {
       filteredRecords = filteredRecords.filter(r => r.date >= exportStartDate);
     }
@@ -971,7 +971,7 @@ const confirmImport = async () => {
           </div>
         </div>
       </div>
-      
+
       {/* ✨ 這是第 4 步要新增的：篩選控制列 ✨ */}
       {/* 加上 records.length > 0 的判斷，確保有資料時才顯示篩選器 */}
       {records.length > 0 && (
