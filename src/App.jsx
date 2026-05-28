@@ -301,7 +301,7 @@ const AccountingApp = () => {
 
   // 匯出 Excel (CSV)
   const handleExport = (onlyReimbursable = false) => {
-    // 根據選擇的日期區間進行篩選，並套用目前的排序 (sortedRecords)
+    // 根據選擇的日期區間進行篩選，並套用目前的排序 (displayRecords)
     let filteredRecords = displayRecords;
     if (exportStartDate) {
       filteredRecords = filteredRecords.filter(r => r.date >= exportStartDate);
@@ -1043,8 +1043,8 @@ const confirmImport = async () => {
                 <SortableHeader label="日期" sortKey="date" />
                 <SortableHeader label="人員" sortKey="spender" />
                 <SortableHeader label="品名" sortKey="itemName" minWidth="min-w-[150px]" />
-                <SortableHeader label="總金額" sortKey="amount" />
                 <SortableHeader label="廠商" sortKey="vendor" />
+                <SortableHeader label="總金額" sortKey="amount" />
                 <SortableHeader label="方式" sortKey="paymentMethod" />
                 <SortableHeader label="屬性" sortKey="usageType" />
                 <SortableHeader label="報帳" sortKey="isReimbursable" />
