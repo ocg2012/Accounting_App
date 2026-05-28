@@ -69,6 +69,7 @@ const AccountingApp = () => {
     barcode: '',
     itemName: '',
     amount: '',
+    tax: '',
     paymentMethod: '現金',
     paymentDetail: '',
     usageType: '公司用',
@@ -154,7 +155,11 @@ const AccountingApp = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.spender || !formData.itemName || !formData.amount) return;
-
+    const payload = {
+      ...formData,
+      amount: Number(formData.amount),
+      tax: formData.tax ? Number(formData.tax) : 0
+    };
     try {
       if (editingId) {
         // 編輯：更新雲端現有紀錄
@@ -274,13 +279,15 @@ const AccountingApp = () => {
       return;
     }
 
-    const headers = ['花費人員', '日期', '發票條碼', '品名', '金額', '消費形式', '付款細節', '公司/家用', '專案名稱', '需報帳', '備註'];
+    const headers = ['花費人員', '日期', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用', '專案名稱', '需報帳', '備註'];
     const csvRows = filteredRecords.map(r => [
       escapeCSV(r.spender || '無'),
       escapeCSV(r.date || '無'),
       escapeCSV(r.barcode || '無'),
       escapeCSV(r.itemName || '無'),
-      escapeCSV(r.amount || '0'),
+      escapeCSV(r.amount || '0'), // 未稅金額
+      escapeCSV(r.tax || '0'),    // 稅金
+      escapeCSV(Number(r.amount || 0) + Number(r.tax || 0)), // 總金額
       escapeCSV(r.paymentMethod || '無'),
       escapeCSV(r.paymentDetail || '無'),
       escapeCSV(r.usageType || '無'),
@@ -682,22 +689,45 @@ const confirmImport = async () => {
             />
           </div>
 
-          {/* 金額 */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">金額</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-              <input
-                type="number"
-                name="amount"
-                value={formData.amount}
-                onChange={handleInputChange}
-                min="0"
-                step="1"
-                placeholder="0"
-                required
-                className="w-full p-3 pl-8 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-              />
+          {/* 未稅金額與稅金 (並排設計) */}
+          <div className="space-y-2 sm:col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* 未稅金額 */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">未稅金額 *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    name="amount"
+                    value={formData.amount}
+                    onChange={handleInputChange}
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    required
+                    className="w-full p-3 pl-8 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  />
+                </div>
+              </div>
+
+              {/* 稅金 */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">稅金 (選填)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input
+                    type="number"
+                    name="tax"
+                    value={formData.tax}
+                    onChange={handleInputChange}
+                    min="0"
+                    step="1"
+                    placeholder="預設為 0"
+                    className="w-full p-3 pl-8 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -898,7 +928,7 @@ const confirmImport = async () => {
                 <SortableHeader label="日期" sortKey="date" />
                 <SortableHeader label="人員" sortKey="spender" />
                 <SortableHeader label="品名" sortKey="itemName" minWidth="min-w-[150px]" />
-                <SortableHeader label="金額" sortKey="amount" />
+                <SortableHeader label="總金額" sortKey="amount" />
                 <SortableHeader label="方式" sortKey="paymentMethod" />
                 <SortableHeader label="屬性" sortKey="usageType" />
                 <SortableHeader label="報帳" sortKey="isReimbursable" />
@@ -915,7 +945,16 @@ const confirmImport = async () => {
                     {record.itemName || '無'}
                     <div className="text-xs text-gray-400 mt-1">條碼: {record.barcode || '無'}</div>
                   </td>
-                  <td className="p-4 text-gray-900 font-bold whitespace-nowrap">${Number(record.amount || 0).toLocaleString()}</td>
+                  <td className="p-4 whitespace-nowrap">
+                    <div className="text-gray-900 font-bold">
+                      ${(Number(record.amount || 0) + Number(record.tax || 0)).toLocaleString()}
+                    </div>
+                    {Number(record.tax) > 0 && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        (未稅 ${Number(record.amount || 0).toLocaleString()} / 稅 ${Number(record.tax || 0).toLocaleString()})
+                      </div>
+                    )}
+                  </td>
                   <td className="p-4 whitespace-nowrap">
                     <div className="flex flex-col gap-1 items-start">
                       <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
