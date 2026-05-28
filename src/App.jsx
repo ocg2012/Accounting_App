@@ -62,7 +62,13 @@ const AccountingApp = () => {
   const [newCreditCardName, setNewCreditCardName] = useState('');
   const [newBankAccountName, setNewBankAccountName] = useState('');
   const [newVendorName, setNewVendorName] = useState(''); // 設定頁面用的輸入框
-
+// ✨ 新增：篩選器狀態 ✨
+  const [filterConfig, setFilterConfig] = useState({
+    spender: '',
+    usageType: '',
+    vendor: '',
+    projectName: ''
+  });
   // 預設表單資料
   const initialFormData = {
     spender: '',
@@ -216,39 +222,71 @@ const AccountingApp = () => {
     }
     setSortConfig({ key, direction });
   };
+  // ✨ 核心邏輯：先過濾資料，再進行排序 ✨
+  const displayRecords = React.useMemo(() => {
+    // 1. 先進行篩選
+    let result = records.filter(record => {
+      const matchSpender = !filterConfig.spender || record.spender === filterConfig.spender;
+      const matchUsage = !filterConfig.usageType || record.usageType === filterConfig.usageType;
+      const matchVendor = !filterConfig.vendor || record.vendor === filterConfig.vendor;
+      const matchProject = !filterConfig.projectName || record.projectName === filterConfig.projectName;
+      
+      return matchSpender && matchUsage && matchVendor && matchProject;
+    });
 
-  // 取得排序後的紀錄 (使用 useMemo 增進效能)
-  const sortedRecords = React.useMemo(() => {
-    let sortableItems = [...records];
+    // 2. 再進行排序 (延用你原本的排序邏輯)
     if (sortConfig.key !== null) {
-      sortableItems.sort((a, b) => {
+      result.sort((a, b) => {
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
 
-        // 處理布林值 (報帳)
-        if (sortConfig.key === 'isReimbursable') {
-          aValue = aValue ? '1' : '0';
-          bValue = bValue ? '1' : '0';
-        }
-
-        // 處理數字 (金額)
         if (sortConfig.key === 'amount') {
           return sortConfig.direction === 'asc' 
             ? Number(aValue || 0) - Number(bValue || 0) 
             : Number(bValue || 0) - Number(aValue || 0);
         }
 
-        // 處理字串 (預設皆為字串比較)
         const strA = String(aValue || '').toLowerCase();
         const strB = String(bValue || '').toLowerCase();
-        
         if (strA < strB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (strA > strB) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
     }
-    return sortableItems;
-  }, [records, sortConfig]);
+    return result;
+  }, [records, sortConfig, filterConfig]);
+  // 取得排序後的紀錄 (使用 useMemo 增進效能)
+  // const sortedRecords = React.useMemo(() => {
+  //   let sortableItems = [...records];
+  //   if (sortConfig.key !== null) {
+  //     sortableItems.sort((a, b) => {
+  //       let aValue = a[sortConfig.key];
+  //       let bValue = b[sortConfig.key];
+
+  //       // 處理布林值 (報帳)
+  //       if (sortConfig.key === 'isReimbursable') {
+  //         aValue = aValue ? '1' : '0';
+  //         bValue = bValue ? '1' : '0';
+  //       }
+
+  //       // 處理數字 (金額)
+  //       if (sortConfig.key === 'amount') {
+  //         return sortConfig.direction === 'asc' 
+  //           ? Number(aValue || 0) - Number(bValue || 0) 
+  //           : Number(bValue || 0) - Number(aValue || 0);
+  //       }
+
+  //       // 處理字串 (預設皆為字串比較)
+  //       const strA = String(aValue || '').toLowerCase();
+  //       const strB = String(bValue || '').toLowerCase();
+        
+  //       if (strA < strB) return sortConfig.direction === 'asc' ? -1 : 1;
+  //       if (strA > strB) return sortConfig.direction === 'asc' ? 1 : -1;
+  //       return 0;
+  //     });
+  //   }
+  //   return sortableItems;
+  // }, [records, sortConfig]);
 
   // CSV 欄位跳脫處理 (防止內容包含逗號導致欄位錯位)
   const escapeCSV = (val) => {
@@ -933,6 +971,63 @@ const confirmImport = async () => {
           </div>
         </div>
       </div>
+      
+      {/* ✨ 這是第 4 步要新增的：篩選控制列 ✨ */}
+      {/* 加上 records.length > 0 的判斷，確保有資料時才顯示篩選器 */}
+      {records.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+          {/* 1. 篩選人員 */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 ml-1">篩選人員</label>
+            <select 
+              value={filterConfig.spender}
+              onChange={(e) => setFilterConfig({...filterConfig, spender: e.target.value})}
+              className="w-full p-2 rounded-lg border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">全部人員</option>
+              {spenders.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* 2. 使用分類 (公司/家用) */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 ml-1">使用分類</label>
+            <select 
+              value={filterConfig.usageType}
+              onChange={(e) => setFilterConfig({...filterConfig, usageType: e.target.value})}
+              className="w-full p-2 rounded-lg border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">全部分類</option>
+              <option value="公司用">公司用</option>
+              <option value="家用">家用</option>
+            </select>
+          </div>
+
+          {/* 3. 篩選廠商 */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 ml-1">篩選廠商</label>
+            <select 
+              value={filterConfig.vendor}
+              onChange={(e) => setFilterConfig({...filterConfig, vendor: e.target.value})}
+              className="w-full p-2 rounded-lg border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">全部廠商</option>
+              {vendors.map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+
+          {/* 4. 重置按鈕 */}
+          <div className="flex items-end">
+            <button 
+              onClick={() => setFilterConfig({ spender: '', usageType: '', vendor: '', projectName: '' })}
+              className="w-full p-2 text-sm text-blue-600 font-medium hover:bg-blue-100 rounded-lg transition border border-transparent hover:border-blue-200"
+            >
+              清除篩選
+            </button>
+          </div>
+        </div>
+      )}
+      {/* ✨ 篩選控制列結束 ✨ */}
 
       {records.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
@@ -949,6 +1044,7 @@ const confirmImport = async () => {
                 <SortableHeader label="人員" sortKey="spender" />
                 <SortableHeader label="品名" sortKey="itemName" minWidth="min-w-[150px]" />
                 <SortableHeader label="總金額" sortKey="amount" />
+                <SortableHeader label="廠商" sortKey="vendor" />
                 <SortableHeader label="方式" sortKey="paymentMethod" />
                 <SortableHeader label="屬性" sortKey="usageType" />
                 <SortableHeader label="報帳" sortKey="isReimbursable" />
@@ -957,13 +1053,23 @@ const confirmImport = async () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {sortedRecords.map((record) => (
+              {displayRecords.map((record) => (
                 <tr key={record.id} className="hover:bg-gray-50 transition">
                   <td className="p-4 text-gray-700 whitespace-nowrap">{record.date || '無'}</td>
                   <td className="p-4 text-gray-700 whitespace-nowrap">{record.spender || '無'}</td>
                   <td className="p-4 text-gray-900 font-medium">
                     {record.itemName || '無'}
                     <div className="text-xs text-gray-400 mt-1">條碼: {record.barcode || '無'}</div>
+                  </td>
+                  {/* ✨ 新增：廠商 TD ✨ */}
+                  <td className="p-4 whitespace-nowrap text-sm text-gray-600">
+                    {record.vendor ? (
+                      <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">
+                        {record.vendor}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
                   </td>
                   <td className="p-4 whitespace-nowrap">
                     <div className="text-gray-900 font-bold">
