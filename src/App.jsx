@@ -56,23 +56,25 @@ const AccountingApp = () => {
   
   // 新增狀態：排序功能
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
-
+  const [categories, setCategories] = useState([]); // 消費種類清單
+  const [newCategoryName, setNewCategoryName] = useState(''); // 設定頁新增種類輸入框
   const [newSpenderName, setNewSpenderName] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
   const [newCreditCardName, setNewCreditCardName] = useState('');
   const [newBankAccountName, setNewBankAccountName] = useState('');
   const [newVendorName, setNewVendorName] = useState(''); // 設定頁面用的輸入框
-// ✨ 新增：篩選器狀態 ✨
+// 更新篩選器狀態：鎖定你指定的 4 個核心檢視分類
   const [filterConfig, setFilterConfig] = useState({
     spender: '',
-    usageType: '',
-    vendor: '',
-    projectName: ''
+    category: '',
+    projectName: '',
+    isReimbursable: '' // '' 全部, 'true' 需報帳, 'false' 不需報帳
   });
   // 預設表單資料
   const initialFormData = {
     spender: '',
     date: new Date().toISOString().split('T')[0], // 今天日期
+    category: '',       // ✨ 新增消費種類
     barcode: '',
     itemName: '',
     amount: '',
@@ -85,7 +87,7 @@ const AccountingApp = () => {
     isReimbursable: false,
     remark: ''
   };
-
+  
   const [formData, setFormData] = useState(initialFormData);
 
   // 初始化時自動選擇第一個花費人員
@@ -123,6 +125,7 @@ const AccountingApp = () => {
         setCreditCards(data.creditCards || []);
         setBankAccounts(data.bankAccounts || []);
         setVendors(data.vendors || []);
+        setCategories(data.categories || []); // ✨ 新增這行，從資料庫讀取分類
       } else {
         // 如果雲端沒有設定，初始化一份預設值
         setDoc(doc(db, "config", "settings"), {
@@ -226,15 +229,25 @@ const AccountingApp = () => {
   const displayRecords = React.useMemo(() => {
     // 1. 先進行篩選
     let result = records.filter(record => {
+      // 比對消費人員
       const matchSpender = !filterConfig.spender || record.spender === filterConfig.spender;
-      const matchUsage = !filterConfig.usageType || record.usageType === filterConfig.usageType;
-      const matchVendor = !filterConfig.vendor || record.vendor === filterConfig.vendor;
+      
+      // ✨ 新增：比對消費種類
+      const matchCategory = !filterConfig.category || record.category === filterConfig.category;
+      
+      // 比對專案名稱
       const matchProject = !filterConfig.projectName || record.projectName === filterConfig.projectName;
       
-      return matchSpender && matchUsage && matchVendor && matchProject;
+      // ✨ 新增：比對是否報帳 (因為 filterConfig 存的是字串 'true'/'false'，但 record 存的是布林值 true/false，所以要轉換)
+      let matchReimbursable = true;
+      if (filterConfig.isReimbursable === 'true') matchReimbursable = record.isReimbursable === true;
+      if (filterConfig.isReimbursable === 'false') matchReimbursable = record.isReimbursable === false;
+      
+      // 必須四個條件都符合才顯示
+      return matchSpender && matchCategory && matchProject && matchReimbursable;
     });
 
-    // 2. 再進行排序 (延用你原本的排序邏輯)
+    // 2. 再進行排序 (延用你原本的排序邏輯，完全不動)
     if (sortConfig.key !== null) {
       result.sort((a, b) => {
         let aValue = a[sortConfig.key];
@@ -704,6 +717,21 @@ const confirmImport = async () => {
             />
           </div>
 
+          {/* 日期下方，可以新增一個獨立的網格區塊 */}
+          <div className="space-y-2 sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-700">消費種類 *</label>
+            <select
+              name="category"
+              value={formData.category}
+              onChange={handleInputChange}
+              required
+              className="w-full p-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white"
+            >
+              <option value="" disabled>請選擇消費種類 (如：雜費、進貨...)</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
           {/* 發票條碼 (選填) - 移至品名前面 */}
           <div className="space-y-2 sm:col-span-2">
             <label className="block text-sm font-medium text-gray-700">發票條碼 (選填)</label>
@@ -923,7 +951,7 @@ const confirmImport = async () => {
     </div>
   );
 
-  const renderRecords = () => (
+const renderRecords = () => (
     <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 border border-gray-100 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -972,13 +1000,13 @@ const confirmImport = async () => {
         </div>
       </div>
 
-      {/* ✨ 這是第 4 步要新增的：篩選控制列 ✨ */}
-      {/* 加上 records.length > 0 的判斷，確保有資料時才顯示篩選器 */}
+      {/* ✨ 1. 更新篩選控制列：改成你要的 4 個分類 ✨ */}
       {records.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
-          {/* 1. 篩選人員 */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+          
+          {/* 分類一：消費人員 */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 ml-1">篩選人員</label>
+            <label className="text-xs font-bold text-gray-500 ml-1">消費人員</label>
             <select 
               value={filterConfig.spender}
               onChange={(e) => setFilterConfig({...filterConfig, spender: e.target.value})}
@@ -989,37 +1017,50 @@ const confirmImport = async () => {
             </select>
           </div>
 
-          {/* 2. 使用分類 (公司/家用) */}
+          {/* 分類二：消費種類 */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 ml-1">使用分類</label>
+            <label className="text-xs font-bold text-gray-500 ml-1">消費種類</label>
             <select 
-              value={filterConfig.usageType}
-              onChange={(e) => setFilterConfig({...filterConfig, usageType: e.target.value})}
+              value={filterConfig.category}
+              onChange={(e) => setFilterConfig({...filterConfig, category: e.target.value})}
               className="w-full p-2 rounded-lg border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
             >
-              <option value="">全部分類</option>
-              <option value="公司用">公司用</option>
-              <option value="家用">家用</option>
+              <option value="">全部種類</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
 
-          {/* 3. 篩選廠商 */}
+          {/* 分類三：所屬專案 */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-500 ml-1">篩選廠商</label>
+            <label className="text-xs font-bold text-gray-500 ml-1">所屬專案</label>
             <select 
-              value={filterConfig.vendor}
-              onChange={(e) => setFilterConfig({...filterConfig, vendor: e.target.value})}
+              value={filterConfig.projectName}
+              onChange={(e) => setFilterConfig({...filterConfig, projectName: e.target.value})}
               className="w-full p-2 rounded-lg border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
             >
-              <option value="">全部廠商</option>
-              {vendors.map(v => <option key={v} value={v}>{v}</option>)}
+              <option value="">全部專案</option>
+              {projects.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
 
-          {/* 4. 重置按鈕 */}
-          <div className="flex items-end">
+          {/* 分類四：是否報帳 */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-gray-500 ml-1">是否報帳</label>
+            <select 
+              value={filterConfig.isReimbursable}
+              onChange={(e) => setFilterConfig({...filterConfig, isReimbursable: e.target.value})}
+              className="w-full p-2 rounded-lg border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">全部狀態</option>
+              <option value="true">需報帳 💰</option>
+              <option value="false">不需報帳 ❌</option>
+            </select>
+          </div>
+
+          {/* 重置按鈕 */}
+          <div className="flex items-end col-span-2 md:col-span-1">
             <button 
-              onClick={() => setFilterConfig({ spender: '', usageType: '', vendor: '', projectName: '' })}
+              onClick={() => setFilterConfig({ spender: '', category: '', projectName: '', isReimbursable: '' })}
               className="w-full p-2 text-sm text-blue-600 font-medium hover:bg-blue-100 rounded-lg transition border border-transparent hover:border-blue-200"
             >
               清除篩選
@@ -1027,13 +1068,18 @@ const confirmImport = async () => {
           </div>
         </div>
       )}
-      {/* ✨ 篩選控制列結束 ✨ */}
 
+      {/* ✨ 2. 新增防呆：如果有紀錄，但「篩選後」找不到資料時的提示 ✨ */}
       {records.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
           <Receipt className="mx-auto h-12 w-12 text-gray-400 mb-3" />
           <h3 className="text-lg font-medium text-gray-900">目前尚無紀錄</h3>
           <p className="text-gray-500">請前往「記帳」頁面新增您的第一筆帳務。</p>
+        </div>
+      ) : displayRecords.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+           <h3 className="text-lg font-medium text-gray-900">找不到符合條件的紀錄</h3>
+           <p className="text-gray-500">請嘗試調整上方的檢視分類。</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -1042,6 +1088,7 @@ const confirmImport = async () => {
               <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-600">
                 <SortableHeader label="日期" sortKey="date" />
                 <SortableHeader label="人員" sortKey="spender" />
+                <SortableHeader label="種類" sortKey="category" /> {/* ✨ 3. 新增這行：種類表頭 ✨ */}
                 <SortableHeader label="品名" sortKey="itemName" minWidth="min-w-[150px]" />
                 <SortableHeader label="廠商" sortKey="vendor" />
                 <SortableHeader label="總金額" sortKey="amount" />
@@ -1057,11 +1104,18 @@ const confirmImport = async () => {
                 <tr key={record.id} className="hover:bg-gray-50 transition">
                   <td className="p-4 text-gray-700 whitespace-nowrap">{record.date || '無'}</td>
                   <td className="p-4 text-gray-700 whitespace-nowrap">{record.spender || '無'}</td>
+                  
+                  {/* ✨ 4. 新增這區塊：顯示消費種類 ✨ */}
+                  <td className="p-4 whitespace-nowrap">
+                    <span className="px-2 py-1 bg-teal-50 text-teal-700 rounded text-xs font-semibold">
+                      {record.category || '未分類'}
+                    </span>
+                  </td>
+
                   <td className="p-4 text-gray-900 font-medium">
                     {record.itemName || '無'}
                     <div className="text-xs text-gray-400 mt-1">條碼: {record.barcode || '無'}</div>
                   </td>
-                  {/* ✨ 新增：廠商 TD ✨ */}
                   <td className="p-4 whitespace-nowrap text-sm text-gray-600">
                     {record.vendor ? (
                       <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">
@@ -1104,13 +1158,11 @@ const confirmImport = async () => {
                     </div>
                   </td>
                   <td className="p-4 whitespace-nowrap">
-                    {record.usageType === '公司用' ? (
-                      record.isReimbursable ? 
-                        <span className="text-green-600 text-sm font-medium">是</span> : 
-                        <span className="text-gray-400 text-sm">否</span>
-                    ) : (
-                      <span className="text-gray-300 text-sm">-</span>
-                    )}
+                    {/* 若原本是公司用還是家用都可以報帳，這邊判斷可以簡化成只看 isReimbursable */}
+                    {record.isReimbursable ? 
+                      <span className="text-green-600 text-sm font-medium">是</span> : 
+                      <span className="text-gray-400 text-sm">否</span>
+                    }
                   </td>
                   <td className="p-4 text-gray-500 text-sm max-w-[150px] truncate" title={record.remark || '無'}>
                     {record.remark || '無'}
@@ -1292,6 +1344,60 @@ const confirmImport = async () => {
               </li>
             ))}
           </ul>
+        </div>
+        
+        {/* ✨ 新增：消費種類管理區塊 ✨ */}
+        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            <List size={20} className="text-teal-600" />
+            消費種類設定
+          </h3>
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="輸入新種類 (如：車馬交通費)"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              className="flex-1 p-2 rounded-lg border border-gray-300 text-sm outline-none focus:border-blue-500"
+            />
+            <button
+              onClick={async () => {
+                if (!newCategoryName.trim()) return;
+                if (categories.includes(newCategoryName.trim())) {
+                  alert('此種類已存在！');
+                  return;
+                }
+                const updated = [...categories, newCategoryName.trim()];
+                await updateDoc(doc(db, "config", "settings"), { categories: updated });
+                setNewCategoryName('');
+              }}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+            >
+              新增
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
+            {categories.length === 0 ? (
+              <span className="text-sm text-gray-400">目前尚無自訂種類，請由上方新增。</span>
+            ) : (
+              categories.map(c => (
+                <div key={c} className="flex items-center gap-1.5 bg-gray-100 text-gray-700 pl-3 pr-2 py-1 rounded-full text-sm font-medium border border-gray-200">
+                  {c}
+                  <button
+                    onClick={async () => {
+                      if (confirm(`確定要刪除「${c}」這個種類嗎？`)) {
+                        const updated = categories.filter(item => item !== c);
+                        await updateDoc(doc(db, "config", "settings"), { categories: updated });
+                      }
+                    }}
+                    className="text-gray-400 hover:text-red-500 rounded-full p-0.5"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         {/* 廠商管理 */}
