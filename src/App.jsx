@@ -166,22 +166,24 @@ const AccountingApp = () => {
   // 提交表單 (寫入雲端)
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.spender || !formData.itemName || !formData.amount) return;
+    if (!formData.spender || !formData.itemName || !formData.amount || !formData.category) return;
     const payload = {
       ...formData,
       amount: Number(formData.amount),
-      tax: formData.tax ? Number(formData.tax) : 0
+      tax: formData.tax ? Number(formData.tax) : 0,
+      // 順手加上這行，確保「是否報帳」存進資料庫時絕對是乾淨的 true / false 布林值
+      isReimbursable: Boolean(formData.isReimbursable) 
     };
     try {
       if (editingId) {
         // 編輯：更新雲端現有紀錄
         const recordRef = doc(db, "records", editingId);
-        await updateDoc(recordRef, formData);
+        await updateDoc(recordRef, payload);
         setSuccessMsg('紀錄已成功更新至雲端！');
         setEditingId(null); // 更新完畢後退出編輯模式
       } else {
         // 新增：推送新紀錄到雲端
-        await addDoc(collection(db, "records"), formData);
+        await addDoc(collection(db, "records"), payload);
         setSuccessMsg('紀錄已成功儲存至雲端！');
       }
       
