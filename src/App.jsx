@@ -335,10 +335,11 @@ const AccountingApp = () => {
       return;
     }
 
-    const headers = ['花費人員', '日期', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用', '專案名稱', '廠商', '需報帳', '備註'];
+    const headers = ['花費人員', '日期', '消費種類', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用', '專案名稱', '廠商', '需報帳', '備註'];
     const csvRows = filteredRecords.map(r => [
       escapeCSV(r.spender || '無'),
       escapeCSV(r.date || '無'),
+      escapeCSV(r.category || '未分類'), // 補上消費種類
       escapeCSV(r.barcode || '無'),
       escapeCSV(r.itemName || '無'),
       escapeCSV(r.amount || '0'), // 未稅金額
@@ -503,6 +504,7 @@ const AccountingApp = () => {
       const cols = {
         spender: getCol(['花費人員', '人員']),
         date: getCol(['日期', '時間']),
+        category: getCol(['消費種類', '種類']), // ✨ 新增這行：自動抓取消費種類欄位
         barcode: getCol(['發票條碼', '條碼']),
         itemName: getCol(['品名', '名稱']),
         amount: getCol(['金額', '花費']),
@@ -547,6 +549,7 @@ const AccountingApp = () => {
           // 使用動態欄位讀取資料
           let rawSpender = cols.spender !== -1 ? safeTrim(row[cols.spender]) : '';
           let rawDate = cols.date !== -1 ? safeTrim(row[cols.date]) : '';
+          let rawCategory = cols.category !== -1 ? safeTrim(row[cols.category]) : ''; // ✨ 新增這行
           let rawBarcode = cols.barcode !== -1 ? safeTrim(row[cols.barcode]) : '';
           let rawItemName = cols.itemName !== -1 ? safeTrim(row[cols.itemName]) : '';
           let rawAmount = cols.amount !== -1 ? safeTrim(row[cols.amount]) : '';
@@ -577,6 +580,7 @@ const AccountingApp = () => {
             id: Date.now().toString() + '-' + i,
             spender: rawSpender || '無',
             date: rawDate,
+            category: rawCategory || '未分類', // ✨ 新增這行
             barcode: rawBarcode === '無' ? '' : rawBarcode,
             itemName: rawItemName || '無',
             amount: rawAmount,
@@ -618,12 +622,14 @@ const confirmImport = async () => {
     const newProjects = new Set(projects);
     const newCreditCards = new Set(creditCards);
     const newBankAccounts = new Set(bankAccounts);
+    const newCategories = new Set(categories); // ✨ 新增這行：自動同步消費種類清單
 
     importPreview.forEach(r => {
       if (r.spender && r.spender !== '無') newSpenders.add(r.spender);
       if (r.projectName && r.projectName !== '無') newProjects.add(r.projectName);
       if (r.paymentMethod === '信用卡' && r.paymentDetail && r.paymentDetail !== '無') newCreditCards.add(r.paymentDetail);
       if (r.paymentMethod === '轉帳' && r.paymentDetail && r.paymentDetail !== '無') newBankAccounts.add(r.paymentDetail);
+      if (r.category && r.category !== '未分類') newCategories.add(r.category); // ✨ 新增這行
     });
 
     // 修改：匯入的新設定也同步寫入雲端
@@ -631,7 +637,8 @@ const confirmImport = async () => {
       spenders: Array.from(newSpenders),
       projects: Array.from(newProjects),
       creditCards: Array.from(newCreditCards),
-      bankAccounts: Array.from(newBankAccounts)
+      bankAccounts: Array.from(newBankAccounts),
+      categories: Array.from(newCategories) // ✨ 新增這行
     }, { merge: true });
 
     setRecords(prev => [...importPreview, ...prev]);
