@@ -1369,58 +1369,29 @@ const renderRecords = () => (
           </ul>
         </div>
         
-        {/* ✨ 新增：消費種類管理區塊 ✨ */}
-        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <List size={20} className="text-teal-600" />
-            消費種類設定
-          </h3>
-          <div className="flex gap-2 mb-4">
+        {/* 消費種類管理 */}
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">消費種類管理</h3>
+          <form onSubmit={(e) => handleAddSetting(e, 'categories', newCategoryName, setNewCategoryName, categories)} className="flex gap-2 mb-4">
             <input
               type="text"
-              placeholder="輸入新種類 (如：車馬交通費)"
+              placeholder="新增種類 (如：車馬交通費)"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               className="flex-1 p-2 rounded-lg border border-gray-300 text-sm outline-none focus:border-blue-500"
             />
-            <button
-              onClick={async () => {
-                if (!newCategoryName.trim()) return;
-                if (categories.includes(newCategoryName.trim())) {
-                  alert('此種類已存在！');
-                  return;
-                }
-                const updated = [...categories, newCategoryName.trim()];
-                await updateDoc(doc(db, "config", "settings"), { categories: updated });
-                setNewCategoryName('');
-              }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-            >
-              新增
+            <button type="submit" disabled={!newCategoryName.trim()} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition text-sm flex items-center gap-1">
+              <PlusCircle size={16} /> 新增
             </button>
-          </div>
-          <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-1">
-            {categories.length === 0 ? (
-              <span className="text-sm text-gray-400">目前尚無自訂種類，請由上方新增。</span>
-            ) : (
-              categories.map(c => (
-                <div key={c} className="flex items-center gap-1.5 bg-gray-100 text-gray-700 pl-3 pr-2 py-1 rounded-full text-sm font-medium border border-gray-200">
-                  {c}
-                  <button
-                    onClick={async () => {
-                      if (confirm(`確定要刪除「${c}」這個種類嗎？`)) {
-                        const updated = categories.filter(item => item !== c);
-                        await updateDoc(doc(db, "config", "settings"), { categories: updated });
-                      }
-                    }}
-                    className="text-gray-400 hover:text-red-500 rounded-full p-0.5"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
+          </form>
+          <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+            {categories.map((item) => (
+              <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
+                <span className="font-medium text-gray-700">{item}</span>
+                <button onClick={() => deleteSetting(item, 'categories', 'category', categories)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* 廠商管理 */}
