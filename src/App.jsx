@@ -57,7 +57,11 @@ const AccountingApp = () => {
   // 新增狀態：排序功能
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
   const [categories, setCategories] = useState([]); // 消費種類清單
+  const [homeCategories, setHomeCategories] = useState([]); // 家用分類清單
+  const [homeUsers, setHomeUsers] = useState([]); // 家用使用者清單
   const [newCategoryName, setNewCategoryName] = useState(''); // 設定頁新增種類輸入框
+  const [newHomeCategoryName, setNewHomeCategoryName] = useState(''); // 設定頁新增家用分類輸入框
+  const [newHomeUserName, setNewHomeUserName] = useState(''); // 設定頁新增使用者輸入框
   const [newSpenderName, setNewSpenderName] = useState('');
   const [newProjectName, setNewProjectName] = useState('');
   const [newCreditCardName, setNewCreditCardName] = useState('');
@@ -84,6 +88,8 @@ const AccountingApp = () => {
     paymentDetail: '',
     usageType: '公司用',
     projectName: '',
+    homeCategory: '',   // 家用分類
+    homeUser: '',       // 家用使用者
     isReimbursable: false,
     remark: ''
   };
@@ -115,7 +121,7 @@ const AccountingApp = () => {
     return () => unsubscribe();
   }, []);
 
-// 2. 新增：監聽系統設定 (人員、專案、信用卡、帳號)
+// 2. 新增：監聽系統設定 (人員、專案、信用卡、帳號、分類、使用者等)
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "config", "settings"), (docSnap) => {
       if (docSnap.exists()) {
@@ -126,13 +132,19 @@ const AccountingApp = () => {
         setBankAccounts(data.bankAccounts || []);
         setVendors(data.vendors || []);
         setCategories(data.categories || []); // ✨ 新增這行，從資料庫讀取分類
+        setHomeCategories(data.homeCategories || []);
+        setHomeUsers(data.homeUsers || []);
       } else {
         // 如果雲端沒有設定，初始化一份預設值
         setDoc(doc(db, "config", "settings"), {
           spenders: ['自己', '老闆', '採購人員A'],
           projects: ['專案A', '專案B'],
           creditCards: ['公司國泰卡', '個人玉山卡'],
-          bankAccounts: ['公司中信帳戶', '個人台新帳戶']
+          bankAccounts: ['公司中信帳戶', '個人台新帳戶'],
+          vendors: [],
+          categories: [],
+          homeCategories: ['飲食', '娛樂', '日用品', '交通'],
+          homeUsers: ['Terry', '家人A']
         });
       }
     });
@@ -156,8 +168,14 @@ const AccountingApp = () => {
 
     if (name === 'paymentMethod') {
       setFormData(prev => ({ ...prev, [name]: newValue, paymentDetail: '' }));
-    } else if (name === 'usageType' && value === '家用') {
-      setFormData(prev => ({ ...prev, [name]: newValue, projectName: '' }));
+    } else if (name === 'usageType') {
+      if (value === '家用') {
+        setFormData(prev => ({ ...prev, [name]: newValue, projectName: '', vendor: '' }));
+      } else if (value === '公司用') {
+        setFormData(prev => ({ ...prev, [name]: newValue, homeCategory: '', homeUser: '' }));
+      } else {
+        setFormData(prev => ({ ...prev, [name]: newValue, projectName: '', vendor: '', homeCategory: '', homeUser: '' }));
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: newValue }));
     }
@@ -337,7 +355,7 @@ const AccountingApp = () => {
       return;
     }
 
-    const headers = ['花費人員', '日期', '消費種類', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用/其他', '專案名稱', '廠商', '需報帳', '備註'];
+    const headers = ['花費人員', '日期', '消費種類', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用/其他', '專案名稱', '廠商', '家用分類', '使用者', '需報帳', '備註'];
     const csvRows = filteredRecords.map(r => [
       escapeCSV(r.spender || '無'),
       escapeCSV(r.date || '無'),
@@ -352,6 +370,8 @@ const AccountingApp = () => {
       escapeCSV(r.usageType || '無'),
       escapeCSV(r.projectName || '無'),
       escapeCSV(r.vendor || '無'),
+      escapeCSV(r.homeCategory || '無'),
+      escapeCSV(r.homeUser || '無'),
       escapeCSV(r.isReimbursable ? '是' : '否'),
       escapeCSV(r.remark || '無')
     ]);
@@ -515,6 +535,8 @@ const AccountingApp = () => {
         paymentDetail: getCol(['付款細節', '細節', '卡片', '帳號']),
         usageType: getCol(['公司/家用/其他', '公司用/家用/其他', '屬性', '分類']),
         projectName: getCol(['專案名稱', '專案']),
+        homeCategory: getCol(['家用分類']),
+        homeUser: getCol(['使用者']),
         isReimbursable: getCol(['需報帳', '報帳']),
         remark: getCol(['備註', '其他'])
       };
@@ -561,6 +583,8 @@ const AccountingApp = () => {
           let rawPaymentDetail = cols.paymentDetail !== -1 ? safeTrim(row[cols.paymentDetail]) : '';
           let rawUsageType = cols.usageType !== -1 ? safeTrim(row[cols.usageType]) : '';
           let rawProjectName = cols.projectName !== -1 ? safeTrim(row[cols.projectName]) : '';
+          let rawHomeCategory = cols.homeCategory !== -1 ? safeTrim(row[cols.homeCategory]) : '';
+          let rawHomeUser = cols.homeUser !== -1 ? safeTrim(row[cols.homeUser]) : '';
           let rawIsReimbursable = cols.isReimbursable !== -1 ? safeTrim(row[cols.isReimbursable]) : '';
           let rawRemark = cols.remark !== -1 ? safeTrim(row[cols.remark]) : '';
 
@@ -597,6 +621,8 @@ const AccountingApp = () => {
             paymentDetail: rawPaymentDetail === '無' ? '' : rawPaymentDetail,
             usageType: rawUsageType || '公司用',
             projectName: rawProjectName === '無' ? '' : rawProjectName,
+            homeCategory: rawHomeCategory === '無' ? '' : rawHomeCategory,
+            homeUser: rawHomeUser === '無' ? '' : rawHomeUser,
             isReimbursable: rawIsReimbursable === '是',
             remark: rawRemark === '無' ? '' : rawRemark
           });
@@ -632,6 +658,8 @@ const confirmImport = async () => {
     const newCreditCards = new Set(creditCards);
     const newBankAccounts = new Set(bankAccounts);
     const newCategories = new Set(categories); // ✨ 新增這行：自動同步消費種類清單
+    const newHomeCategories = new Set(homeCategories);
+    const newHomeUsers = new Set(homeUsers);
 
     importPreview.forEach(r => {
       if (r.spender && r.spender !== '無') newSpenders.add(r.spender);
@@ -639,6 +667,8 @@ const confirmImport = async () => {
       if (r.paymentMethod === '信用卡' && r.paymentDetail && r.paymentDetail !== '無') newCreditCards.add(r.paymentDetail);
       if (r.paymentMethod === '轉帳' && r.paymentDetail && r.paymentDetail !== '無') newBankAccounts.add(r.paymentDetail);
       if (r.category && r.category !== '未分類') newCategories.add(r.category); // ✨ 新增這行
+      if (r.homeCategory && r.homeCategory !== '無' && r.homeCategory !== '') newHomeCategories.add(r.homeCategory);
+      if (r.homeUser && r.homeUser !== '無' && r.homeUser !== '') newHomeUsers.add(r.homeUser);
     });
 
     // 修改：匯入的新設定也同步寫入雲端
@@ -647,7 +677,9 @@ const confirmImport = async () => {
       projects: Array.from(newProjects),
       creditCards: Array.from(newCreditCards),
       bankAccounts: Array.from(newBankAccounts),
-      categories: Array.from(newCategories) // ✨ 新增這行
+      categories: Array.from(newCategories), // ✨ 新增這行
+      homeCategories: Array.from(newHomeCategories),
+      homeUsers: Array.from(newHomeUsers)
     }, { merge: true });
 
     setRecords(prev => [...importPreview, ...prev]);
@@ -929,6 +961,32 @@ const confirmImport = async () => {
               </div>
             )}
 
+            {formData.usageType === '家用' && (
+              <div className="pt-4 border-t border-gray-200 mb-4 space-y-4">
+                {/* 家用分類 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">家用分類</label>
+                  <select name="homeCategory" value={formData.homeCategory || ''} onChange={handleInputChange} required className="w-full p-2.5 rounded-lg border border-gray-300 bg-white">
+                    <option value="" disabled>請選擇家用分類</option>
+                    {homeCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                {/* 使用者 (選填) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">使用者 (選填)</label>
+                  <select 
+                    name="homeUser" 
+                    value={formData.homeUser || ''} 
+                    onChange={handleInputChange} 
+                    className="w-full p-2.5 rounded-lg border border-gray-300 bg-white"
+                  >
+                    <option value="">-- 不指定使用者 --</option>
+                    {homeUsers.map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+
             {/* 修改：將報帳按鈕獨立出來，讓公司用和家用都能顯示並勾選 */}
             <div className="pt-4 border-t border-gray-200 mt-2">
               <label className="flex items-center gap-2 cursor-pointer w-fit p-2 rounded hover:bg-gray-100">
@@ -1113,7 +1171,7 @@ const renderRecords = () => (
                 <SortableHeader label="人員" sortKey="spender" />
                 <SortableHeader label="種類" sortKey="category" /> {/* ✨ 3. 新增這行：種類表頭 ✨ */}
                 <SortableHeader label="品名" sortKey="itemName" minWidth="min-w-[150px]" />
-                <SortableHeader label="廠商" sortKey="vendor" />
+                <SortableHeader label="廠商 / 使用者" sortKey="vendor" />
                 <SortableHeader label="總金額" sortKey="amount" />
                 <SortableHeader label="方式" sortKey="paymentMethod" />
                 <SortableHeader label="屬性" sortKey="usageType" />
@@ -1140,7 +1198,15 @@ const renderRecords = () => (
                     <div className="text-xs text-gray-400 mt-1">條碼: {record.barcode || '無'}</div>
                   </td>
                   <td className="p-4 whitespace-nowrap text-sm text-gray-600">
-                    {record.vendor ? (
+                    {record.usageType === '家用' ? (
+                      record.homeUser ? (
+                        <span className="px-2 py-1 bg-pink-50 text-pink-700 rounded text-xs font-medium">
+                          {record.homeUser}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )
+                    ) : record.vendor ? (
                       <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-xs font-medium">
                         {record.vendor}
                       </span>
@@ -1171,12 +1237,16 @@ const renderRecords = () => (
                   <td className="p-4 whitespace-nowrap">
                     <div className="flex flex-col gap-1 items-start">
                       <span className={`px-2 py-1 text-xs rounded-full ${
-                        record.usageType === '公司用' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
+                        record.usageType === '公司用' ? 'bg-blue-100 text-blue-700' :
+                        record.usageType === '家用' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'
                       }`}>
                         {record.usageType || '無'}
                       </span>
                       {record.usageType === '公司用' && record.projectName && record.projectName !== '無' && (
                         <span className="text-xs text-blue-600 font-medium">{record.projectName}</span>
+                      )}
+                      {record.usageType === '家用' && record.homeCategory && record.homeCategory !== '無' && (
+                        <span className="text-xs text-orange-600 font-medium">{record.homeCategory}</span>
                       )}
                     </div>
                   </td>
@@ -1464,6 +1534,56 @@ const renderRecords = () => (
               <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
                 <span className="font-medium text-gray-700">{item}</span>
                 <button onClick={() => deleteSetting(item, 'bankAccounts', 'paymentDetail', bankAccounts)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* 家用分類管理 */}
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">家用分類管理</h3>
+          <form onSubmit={(e) => handleAddSetting(e, 'homeCategories', newHomeCategoryName, setNewHomeCategoryName, homeCategories)} className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newHomeCategoryName}
+              onChange={(e) => setNewHomeCategoryName(e.target.value)}
+              placeholder="輸入新家用分類"
+              className="flex-1 p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+            />
+            <button type="submit" disabled={!newHomeCategoryName.trim()} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition text-sm flex items-center gap-1">
+              <PlusCircle size={16} /> 新增
+            </button>
+          </form>
+          <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+            {homeCategories.map((item) => (
+              <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
+                <span className="font-medium text-gray-700">{item}</span>
+                <button onClick={() => deleteSetting(item, 'homeCategories', 'homeCategory', homeCategories)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* 家用使用者管理 */}
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4 border-b pb-2">家用使用者管理</h3>
+          <form onSubmit={(e) => handleAddSetting(e, 'homeUsers', newHomeUserName, setNewHomeUserName, homeUsers)} className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newHomeUserName}
+              onChange={(e) => setNewHomeUserName(e.target.value)}
+              placeholder="輸入使用者名稱"
+              className="flex-1 p-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+            />
+            <button type="submit" disabled={!newHomeUserName.trim()} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition text-sm flex items-center gap-1">
+              <PlusCircle size={16} /> 新增
+            </button>
+          </form>
+          <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+            {homeUsers.map((item) => (
+              <li key={item} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
+                <span className="font-medium text-gray-700">{item}</span>
+                <button onClick={() => deleteSetting(item, 'homeUsers', 'homeUser', homeUsers)} className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded transition"><Trash2 size={16} /></button>
               </li>
             ))}
           </ul>
