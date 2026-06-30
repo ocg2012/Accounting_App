@@ -256,9 +256,11 @@ const AccountingApp = () => {
         let bValue = b[sortConfig.key];
 
         if (sortConfig.key === 'amount') {
+          const totalA = (Number(a.amount) || 0) + (Number(a.tax) || 0);
+          const totalB = (Number(b.amount) || 0) + (Number(b.tax) || 0);
           return sortConfig.direction === 'asc' 
-            ? Number(aValue || 0) - Number(bValue || 0) 
-            : Number(bValue || 0) - Number(aValue || 0);
+            ? totalA - totalB 
+            : totalB - totalA;
         }
 
         const strA = String(aValue || '').toLowerCase();
@@ -507,7 +509,8 @@ const AccountingApp = () => {
         category: getCol(['消費種類', '種類']), // ✨ 新增這行：自動抓取消費種類欄位
         barcode: getCol(['發票條碼', '條碼']),
         itemName: getCol(['品名', '名稱']),
-        amount: getCol(['金額', '花費']),
+        amount: getCol(['未稅金額', '金額', '花費']),
+        tax: getCol(['稅金']),
         paymentMethod: getCol(['消費形式', '付款方式', '方式']),
         paymentDetail: getCol(['付款細節', '細節', '卡片', '帳號']),
         usageType: getCol(['公司/家用/其他', '公司用/家用/其他', '屬性', '分類']),
@@ -553,6 +556,7 @@ const AccountingApp = () => {
           let rawBarcode = cols.barcode !== -1 ? safeTrim(row[cols.barcode]) : '';
           let rawItemName = cols.itemName !== -1 ? safeTrim(row[cols.itemName]) : '';
           let rawAmount = cols.amount !== -1 ? safeTrim(row[cols.amount]) : '';
+          let rawTax = cols.tax !== -1 ? safeTrim(row[cols.tax]) : '';
           let rawPaymentMethod = cols.paymentMethod !== -1 ? safeTrim(row[cols.paymentMethod]) : '';
           let rawPaymentDetail = cols.paymentDetail !== -1 ? safeTrim(row[cols.paymentDetail]) : '';
           let rawUsageType = cols.usageType !== -1 ? safeTrim(row[cols.usageType]) : '';
@@ -575,6 +579,10 @@ const AccountingApp = () => {
           if (!rawAmount || rawAmount === '無') rawAmount = '0';
           rawAmount = rawAmount.replace(/,/g, '');
           if (isNaN(Number(rawAmount))) rawAmount = '0';
+          
+          if (!rawTax || rawTax === '無') rawTax = '0';
+          rawTax = rawTax.replace(/,/g, '');
+          if (isNaN(Number(rawTax))) rawTax = '0';
 
           parsedRecords.push({
             id: Date.now().toString() + '-' + i,
@@ -584,6 +592,7 @@ const AccountingApp = () => {
             barcode: rawBarcode === '無' ? '' : rawBarcode,
             itemName: rawItemName || '無',
             amount: rawAmount,
+            tax: rawTax,
             paymentMethod: rawPaymentMethod || '現金',
             paymentDetail: rawPaymentDetail === '無' ? '' : rawPaymentDetail,
             usageType: rawUsageType || '公司用',
@@ -1283,7 +1292,7 @@ const renderRecords = () => (
                       <td className="p-3 text-gray-700 whitespace-nowrap text-sm">{record.date || '無'}</td>
                       <td className="p-3 text-gray-700 whitespace-nowrap text-sm">{record.spender || '無'}</td>
                       <td className="p-3 text-gray-900 font-medium text-sm">{record.itemName || '無'}</td>
-                      <td className="p-3 text-gray-900 font-bold whitespace-nowrap text-sm">${Number(record.amount || 0).toLocaleString()}</td>
+                      <td className="p-3 text-gray-900 font-bold whitespace-nowrap text-sm">${((Number(record.amount) || 0) + (Number(record.tax) || 0)).toLocaleString()}</td>
                       <td className="p-3 whitespace-nowrap text-sm text-gray-600">{record.paymentMethod || '無'}</td>
                       <td className="p-3 whitespace-nowrap text-sm text-gray-500">{record.paymentDetail || '-'}</td>
                     </tr>
