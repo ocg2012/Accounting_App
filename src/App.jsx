@@ -335,7 +335,7 @@ const AccountingApp = () => {
       return;
     }
 
-    const headers = ['花費人員', '日期', '消費種類', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用', '專案名稱', '廠商', '需報帳', '備註'];
+    const headers = ['花費人員', '日期', '消費種類', '發票條碼', '品名', '未稅金額', '稅金', '總金額', '消費形式', '付款細節', '公司/家用/其他', '專案名稱', '廠商', '需報帳', '備註'];
     const csvRows = filteredRecords.map(r => [
       escapeCSV(r.spender || '無'),
       escapeCSV(r.date || '無'),
@@ -510,7 +510,7 @@ const AccountingApp = () => {
         amount: getCol(['金額', '花費']),
         paymentMethod: getCol(['消費形式', '付款方式', '方式']),
         paymentDetail: getCol(['付款細節', '細節', '卡片', '帳號']),
-        usageType: getCol(['公司/家用', '公司用/家用', '屬性', '分類']),
+        usageType: getCol(['公司/家用/其他', '公司用/家用/其他', '屬性', '分類']),
         projectName: getCol(['專案名稱', '專案']),
         isReimbursable: getCol(['需報帳', '報帳']),
         remark: getCol(['備註', '其他'])
@@ -886,6 +886,11 @@ const confirmImport = async () => {
                 <input type="radio" name="usageType" value="家用" checked={formData.usageType === '家用'} onChange={handleInputChange} className="w-4 h-4 text-blue-600" />
                 <Home size={18} className="text-gray-500" />
                 <span>家用</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="usageType" value="其他" checked={formData.usageType === '其他'} onChange={handleInputChange} className="w-4 h-4 text-blue-600" />
+                <List size={18} className="text-gray-500" />
+                <span>其他</span>
               </label>
             </div>
 
